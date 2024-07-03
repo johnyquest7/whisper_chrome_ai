@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiceAI Transcriber</title>
+    <script src="https://unpkg.com/@xenova/transformers@2.6.1"></script>
+    <style>
+        :root {
+            --primary-color: #6C5CE7;
+            --secondary-color: #00CEC9;
+            --background-color: #F0F3F8;
+            --text-color: #2D3436;
+            --card-background: #FFFFFF;
+            --accent-color: #FD79A8;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .app-description {
+            color: var(--text-color);
+            opacity: 0.7;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .app-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            justify-content: center;
+        }
+
+        .transcription-section, .llm-section {
+            flex: 1;
+            min-width: 300px;
+            max-width: 500px;
+        }
+
+        .card {
+            background-color: var(--card-background);
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            margin-bottom: 30px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 1em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:hover {
+            background-color: #5A4ECD;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background-color: #BDC3C7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        button svg {
+            margin-right: 8px;
+        }
+
+        #visualizer {
+            width: 100%;
+            height: 120px;
+            background-color: var(--background-color);
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        #status {
+            margin-top: 15px;
+            font-weight: 500;
+            color: var(--accent-color);
+        }
+
+        .content-area {
+            background-color: var(--background-color);
+            border: 2px solid var(--primary-color);
+            border-radius: 10px;
+            padding: 15px;
+            min-height: 200px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+
+        #llmResponse {
+            resize: vertical;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+
+        .section-title svg {
+            margin-right: 10px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            background-color: var(--primary-color);
+            color: white;
+            margin-top: auto;
+        }
+
+        @media (max-width: 768px) {
+            .app-layout {
+                flex-direction: column;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>VoiceAI Transcriber</h1>
+            <p class="app-description">Transform your speech into text and interact with AI - all in your browser!</p>
+        </header>
+        <div class="app-layout">
+            <div class="transcription-section">
+                <div class="card">
+                    <div class="button-group">
+                        <button id="startRecord" disabled>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 15C13.66 15 15 13.66 15 12V6C15 4.34 13.66 3 12 3C10.34 3 9 4.34 9 6V12C9 13.66 10.34 15 12 15Z" fill="currentColor"/>
+                                <path d="M17 12C17 14.76 14.76 17 12 17C9.24 17 7 14.76 7 12H5C5 15.53 7.61 18.43 11 18.93V21H13V18.93C16.39 18.43 19 15.53 19 12H17Z" fill="currentColor"/>
+                            </svg>
+                            Start Recording
+                        </button>
+                        <button id="stopRecord" disabled>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 6H18V18H6V6Z" fill="currentColor"/>
+                            </svg>
+                            Stop Recording
+                        </button>
+                    </div>
+                    <canvas id="visualizer"></canvas>
+                    <div id="status">Ready to record...</div>
+                </div>
+                <div class="card">
+                    <h2 class="section-title">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM20 16H5.17L4 17.17V4H20V16Z" fill="currentColor"/>
+                            <path d="M12 15L14.59 12.41L16 13.82L16.59 13.23L14 10.64L12 8.64L8 12.64L9.41 14.05L12 11.46V15Z" fill="currentColor"/>
+                        </svg>
+                        Transcription
+                    </h2>
+                    <div id="transcription" class="content-area"></div>
+                </div>
+            </div>
+            <div class="llm-section">
+                <div class="card">
+                    <h2 class="section-title">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M21 11.5C21 16.75 16.75 21 11.5 21C6.25 21 2 16.75 2 11.5C2 6.25 6.25 2 11.5 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M22 22L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M15 8C14.0054 8 13.0516 8.39588 12.3483 9.10041C11.6451 9.80494 11.25 10.7613 11.25 11.7586C11.25 12.7559 11.6451 13.7123 12.3483 14.4168C13.0516 15.1213 14.0054 15.5172 15 15.5172C15.9946 15.5172 16.9484 15.1213 17.6517 14.4168C18.3549 13.7123 18.75 12.7559 18.75 11.7586C18.75 10.7613 18.3549 9.80494 17.6517 9.10041C16.9484 8.39588 15.9946 8 15 8Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        AI Interaction
+                    </h2>
+                    <button id="sendToLLM" disabled>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2.01 21L23 12L2.01 3L2 10L17 12L2 14L2.01 21Z" fill="currentColor"/>
+                        </svg>
+                        Send to AI
+                    </button>
+                    <textarea id="llmResponse" class="content-area" readonly></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+    <footer>
+        <p>GitHub Repo: <a href="https://github.com/johnyquest7/whisper_chrome_ai">https://github.com/johnyquest7/whisper_chrome_ai</a></p> 
+    </footer>
+
+
+    <script type="module">
+        import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.1';
+
+        env.allowLocalModels = false;
+        env.remoteModels = {
+            'Xenova/whisper-small': 'https://huggingface.co/Xenova/whisper-small/resolve/main/'
+        };
+
+        let mediaRecorder;
+        let audioChunks = [];
+        let transcriber;
+        let audioContext;
+        let analyser;
+        let visualizer;
+        let visualizerContext;
+
+        const startRecord = document.getElementById('startRecord');
+        const stopRecord = document.getElementById('stopRecord');
+        const status = document.getElementById('status');
+        const transcription = document.getElementById('transcription');
+        const sendToLLM = document.getElementById('sendToLLM');
+        const llmResponse = document.getElementById('llmResponse');
+        visualizer = document.getElementById('visualizer');
+        visualizerContext = visualizer.getContext('2d');
+
+        (async function loadModel() {
+            try {
+                status.textContent = 'Loading model...';
+                transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small');
+                status.textContent = 'Model loaded. Ready to record.';
+                startRecord.disabled = false;
+            } catch (error) {
+                console.error('Error loading model:', error);
+                status.textContent = 'Error: Unable to load the model.';
+            }
+        })();
+
+        startRecord.addEventListener('click', async () => {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                mediaRecorder.start();
+
+                status.textContent = 'Recording... (speak for at least 5 seconds)';
+                startRecord.disabled = true;
+                stopRecord.disabled = false;
+                sendToLLM.disabled = true;
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                visualize();
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                status.textContent = 'Error: Unable to access microphone';
+            }
+        });
+
+        stopRecord.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                status.textContent = 'Processing...';
+                startRecord.disabled = false;
+                stopRecord.disabled = true;
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioChunks = [];
+                    await transcribeAudio(audioBlob);
+                };
+            }
+        });
+
+        async function transcribeAudio(audioBlob) {
+            try {
+                const arrayBuffer = await audioBlob.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                
+                const offlineContext = new OfflineAudioContext(1, audioBuffer.duration * 16000, 16000);
+                const source = offlineContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(offlineContext.destination);
+                source.start();
+                const resampled = await offlineContext.startRendering();
+
+                const float32Array = resampled.getChannelData(0);
+
+                const result = await transcriber(float32Array, {
+                    chunk_length_s: 30,
+                    stride_length_s: 5,
+                    language: 'english',
+                    task: 'transcribe',
+                    sampling_rate: 16000,
+                    return_timestamps: true
+                });
+
+                transcription.textContent = 'Transcription: ' + result.text;
+                status.textContent = 'Transcription complete.';
+                sendToLLM.disabled = false;
+            } catch (error) {
+                console.error('Transcription error:', error);
+                status.textContent = 'Error during transcription.';
+            }
+        }
+
+        function visualize() {
+            const WIDTH = visualizer.width;
+            const HEIGHT = visualizer.height;
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            visualizerContext.clearRect(0, 0, WIDTH, HEIGHT);
+
+            function draw() {
+                const drawVisual = requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+                visualizerContext.fillStyle = 'rgb(200, 200, 200)';
+                visualizerContext.fillRect(0, 0, WIDTH, HEIGHT);
+                const barWidth = (WIDTH / bufferLength) * 2.5;
+                let barHeight;
+                let x = 0;
+
+                for(let i = 0; i < bufferLength; i++) {
+                    barHeight = dataArray[i] / 2;
+                    visualizerContext.fillStyle = 'rgb(' + (barHeight + 100) + ',50,50)';
+                    visualizerContext.fillRect(x, HEIGHT - barHeight / 2, barWidth, barHeight);
+                    x += barWidth + 1;
+                }
+            };
+
+            draw();
+        }
+
+        sendToLLM.addEventListener('click', async () => {
+            const transcriptionText = transcription.textContent.replace('Transcription: ', '');
+            
+            try {
+                const canCreate = await window.ai.canCreateTextSession();
+                
+                if (canCreate !== "no") {
+                    status.textContent = 'Sending to LLM...';
+                    sendToLLM.disabled = true;
+                    
+                    const session = await window.ai.createTextSession();
+                    
+                    const prompt = `Please respond to the following transcribed text: "${transcriptionText}"`;
+                    
+                    llmResponse.value = ''; // Clear previous response
+                    let result = '';
+                    let previousLength = 0;
+                    
+                    const stream = session.promptStreaming(prompt);
+                    for await (const chunk of stream) {
+                        const newContent = chunk.slice(previousLength);
+                        llmResponse.value += newContent;
+                        previousLength = chunk.length;
+                        result += newContent;
+                    }
+                    
+                    status.textContent = 'LLM response complete.';
+                    sendToLLM.disabled = false;
+                    
+                    session.destroy();
+                } else {
+                    status.textContent = 'Error: LLM is not available on this device.';
+                }
+            } catch (error) {
+                console.error('Error interacting with LLM:', error);
+                status.textContent = 'Error during LLM interaction.';
+                sendToLLM.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
