@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Recorder and Transcriber</title>
+    <script src="https://unpkg.com/@xenova/transformers@2.6.1"></script>
+    <style>
+        #visualizer {
+            width: 100%;
+            height: 100px;
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Audio Recorder and Transcriber</h1>
+    <button id="startRecord" disabled>Start Recording</button>
+    <button id="stopRecord" disabled>Stop Recording</button>
+    <div id="status">Loading model...</div>
+    <canvas id="visualizer"></canvas>
+    <div id="transcription"></div>
+
+    <script type="module">
+        import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.1';
+
+        env.allowLocalModels = false;
+        env.remoteModels = {
+            'Xenova/whisper-small': 'https://huggingface.co/Xenova/whisper-small/resolve/main/'
+        };
+
+        let mediaRecorder;
+        let audioChunks = [];
+        let transcriber;
+        let audioContext;
+        let analyser;
+        let visualizer;
+        let visualizerContext;
+
+        const startRecord = document.getElementById('startRecord');
+        const stopRecord = document.getElementById('stopRecord');
+        const status = document.getElementById('status');
+        const transcription = document.getElementById('transcription');
+        visualizer = document.getElementById('visualizer');
+        visualizerContext = visualizer.getContext('2d');
+
+        (async function loadModel() {
+            try {
+                status.textContent = 'Loading model...';
+                transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small');
+                status.textContent = 'Model loaded. Ready to record.';
+                startRecord.disabled = false;
+            } catch (error) {
+                console.error('Error loading model:', error);
+                status.textContent = 'Error: Unable to load the model.';
+            }
+        })();
+
+        startRecord.onclick = async () => {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                mediaRecorder.start();
+
+                status.textContent = 'Recording... (speak for at least 5 seconds)';
+                startRecord.disabled = true;
+                stopRecord.disabled = false;
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                visualize();
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                status.textContent = 'Error: Unable to access microphone';
+            }
+        };
+
+        stopRecord.onclick = () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                status.textContent = 'Processing...';
+                startRecord.disabled = false;
+                stopRecord.disabled = true;
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioChunks = [];
+                    await transcribeAudio(audioBlob);
+                };
+            }
+        };
+
+        async function transcribeAudio(audioBlob) {
+            try {
+                const arrayBuffer = await audioBlob.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                
+                // Resample audio to 16kHz
+                const offlineContext = new OfflineAudioContext(1, audioBuffer.duration * 16000, 16000);
+                const source = offlineContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(offlineContext.destination);
+                source.start();
+                const resampled = await offlineContext.startRendering();
+
+                const float32Array = resampled.getChannelData(0);
+
+                const result = await transcriber(float32Array, {
+                    chunk_length_s: 30,
+                    stride_length_s: 5,
+                    language: 'english',
+                    task: 'transcribe',
+                    sampling_rate: 16000,
+                    return_timestamps: true
+                });
+
+                transcription.textContent = 'Transcription: ' + result.text;
+                status.textContent = 'Transcription complete.';
+            } catch (error) {
+                console.error('Transcription error:', error);
+                status.textContent = 'Error during transcription.';
+            }
+        }
+
+        function visualize() {
+            const WIDTH = visualizer.width;
+            const HEIGHT = visualizer.height;
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            visualizerContext.clearRect(0, 0, WIDTH, HEIGHT);
+
+            function draw() {
+                const drawVisual = requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+                visualizerContext.fillStyle = 'rgb(200, 200, 200)';
+                visualizerContext.fillRect(0, 0, WIDTH, HEIGHT);
+                const barWidth = (WIDTH / bufferLength) * 2.5;
+                let barHeight;
+                let x = 0;
+
+                for(let i = 0; i < bufferLength; i++) {
+                    barHeight = dataArray[i] / 2;
+                    visualizerContext.fillStyle = 'rgb(' + (barHeight + 100) + ',50,50)';
+                    visualizerContext.fillRect(x, HEIGHT - barHeight / 2, barWidth, barHeight);
+                    x += barWidth + 1;
+                }
+            };
+
+            draw();
+        }
+    </script>
+</body>
+</html>
