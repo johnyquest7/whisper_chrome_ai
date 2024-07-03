@@ -26,6 +26,8 @@ This repository contains three main HTML files, each serving a different purpose
 
 Each file builds upon the previous one, showcasing the progression from a basic voice-to-text tool to a full-featured AI-assisted voice interface.
 
+![Voice Transcriber](https://github.com/johnyquest7/whisper_chrome_ai/assets/22123236/c1b8b328-0807-409f-8da4-2b6bf16a91a5)
+
 ## Use Cases:
 
 Voice-controlled web browsing
