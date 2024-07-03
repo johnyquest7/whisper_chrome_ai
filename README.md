@@ -17,8 +17,14 @@ Privacy-focused design with on-device processing
 
 Customizable and extensible codebase
 
+## Files
+This repository contains three main HTML files, each serving a different purpose:
 
+1. **whisper_transcribe.html**: A basic website that demonstrates voice-to-text functionality.
+2. **transcribe_and_ask_llm.html**: A simple website that combines voice-to-text transcription with Chrome AI responses. It transcribes spoken input and then uses the transcribed text to generate a response from Chrome AI.
+3. **full_interface.html**: A comprehensive, responsive web interface that integrates all the features from the previous two files into a more polished and user-friendly design.
 
+Each file builds upon the previous one, showcasing the progression from a basic voice-to-text tool to a full-featured AI-assisted voice interface.
 
 ## Use Cases:
 
